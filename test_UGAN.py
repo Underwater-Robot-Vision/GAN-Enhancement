@@ -53,7 +53,7 @@ sess.run(init)
 # restore model
 ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
 if ckpt and ckpt.model_checkpoint_path:
-    print ("Restoring previous model...")
+    print "Restoring previous model..."
     try:
         saver.restore(sess, ckpt.model_checkpoint_path)
         print ("Model restored")
