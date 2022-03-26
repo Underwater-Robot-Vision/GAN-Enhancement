@@ -13,6 +13,7 @@ from os.path import join, exists
 from utils.data_utils import DataLoader
 from nets.funieGAN_up import FUNIE_GAN_UP
 from utils.plot_utils import save_val_samples_unpaired
+import tensorflow as tf
 
 ## configure data-loader
 data_dir = "/mnt/data1/ImageEnhance/datasets/EUVP/"
@@ -47,14 +48,49 @@ while (step <= num_step):
         #  train the discriminator (domain A)
         fake_A = funie_gan.g_BA.predict(imgs_distorted)
         dA_loss_real = funie_gan.d_A.train_on_batch(imgs_good, valid)
+        #d_A_logits = funie_gan.d_A.create_logits(imgs_goods)
+
+        #######################################
+        logits_real_A = funie_gan.d_A.predict(imgs_good)
+        logits_fake_A = funie_gan.d_A.predict(fake_A)
+
+        logits_real_A = tf.reduce_mean(logits_real_A, axis=[1,2])
+        logits_fake_A = tf.reduce_mean(logits_fake_A, axis=[1,2])
+
+        adv_mean_loss_A = tf.squared_difference(logits_real_A, logits_fake_A)
+
+        ###################
+
         dA_loss_fake = funie_gan.d_A.train_on_batch(fake_A, fake)
-        dA_loss = 0.5 * np.add(dA_loss_real, dA_loss_fake)
+        dA_loss = 0.5 * np.add(dA_loss_real, dA_loss_fake, adv_mean_loss_A)
+
+
+
         #  train the discriminator (domain B)
         fake_B = funie_gan.g_AB.predict(imgs_good)
         dB_loss_real = funie_gan.d_B.train_on_batch(imgs_distorted, valid)
         dB_loss_fake = funie_gan.d_B.train_on_batch(fake_B, fake)
-        dB_loss = 0.5 * np.add(dB_loss_real, dB_loss_fake)
+
+        ################              NEW 
+        logits_real_B = funie_gan.d_B.predict(imgs_distorted)
+        logits_fake_B = funie_gan.d_B.predict(fake_B)
+
+        logits_real_B = tf.reduce_mean(logits_real_B, axis=[1,2])
+        logits_fake_B = tf.reduce_mean(logits_fake_B, axis=[1,2])
+
+        adv_mean_loss_B = tf.squared_difference(logits_real_B, logits_fake_B)
+
+        adv_mean = adv_mean_loss_A + adv_mean_loss_B
+        ################################################
+
+        dB_loss = 0.5 * np.add(dB_loss_real, dB_loss_fake,adv_mean_loss_B)
+
+
+
         d_loss = 0.5 * np.add(dA_loss, dB_loss)
+
+
+
         ## train the generator
         g_loss = funie_gan.combined.train_on_batch([imgs_good, imgs_distorted], 
                                    [valid, valid, imgs_good, imgs_distorted, imgs_good, imgs_distorted])
@@ -84,5 +120,3 @@ while (step <= num_step):
             print("\nSaved trained model in {0}\n".format(checkpoint_dir))
         # sanity
         if (step>=num_step): break
-         
-
